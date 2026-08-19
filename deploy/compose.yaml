@@ -1,0 +1,11 @@
+# For a plain Docker host:  docker compose -f deploy/compose.yaml up -d
+services:
+  regenradar:
+    image: ghcr.io/OWNER/REPO:latest
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      RUST_LOG: "info,tower_http=warn"
+    read_only: true
+    security_opt: ["no-new-privileges:true"]

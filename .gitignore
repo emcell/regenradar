@@ -1,0 +1,15 @@
+# Rust
+backend/target/
+
+# Node
+web/node_modules/
+web/dist/
+web/dev-dist/
+
+# Playwright
+web/e2e/.artifacts/
+web/playwright-report/
+web/test-results/
+
+# OS
+.DS_Store

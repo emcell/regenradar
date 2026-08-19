@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b1017" />
+    <meta name="description" content="Werbefreies Regenradar mit Vorhersage für die nächsten zwei Stunden." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Regenradar" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <title>Regenradar</title>
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <header class="topbar">
+      <h1>Regenradar</h1>
+      <span id="status" class="status">lädt …</span>
+    </header>
+
+    <div class="side-actions">
+      <button id="locate" class="icon-btn" type="button" title="Mein Standort" aria-label="Mein Standort">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 8a4 4 0 100 8 4 4 0 000-8zm0-6v3m0 14v3M2 12h3m14 0h3" />
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      </button>
+      <button id="legend-toggle" class="icon-btn" type="button" title="Legende" aria-label="Legende">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h10" />
+        </svg>
+      </button>
+    </div>
+
+    <section id="readout" class="readout" hidden>
+      <button id="readout-close" class="readout-close" type="button" aria-label="Schließen">×</button>
+      <div class="readout-head">
+        <strong id="readout-place">Punkt</strong>
+        <span id="readout-source" class="muted"></span>
+      </div>
+      <p id="readout-summary" class="readout-summary">…</p>
+      <canvas id="readout-chart" class="readout-chart" width="600" height="90"></canvas>
+    </section>
+
+    <footer class="controls">
+      <div id="legend" class="legend" hidden>
+        <div class="legend-bar"><canvas id="legend-canvas" width="256" height="1"></canvas></div>
+        <div id="legend-labels" class="legend-labels"></div>
+      </div>
+
+      <div class="control-row">
+        <button id="play" class="icon-btn play" type="button" title="Abspielen" aria-label="Abspielen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z" class="fill" /></svg>
+        </button>
+        <div class="time">
+          <span id="offset" class="offset">jetzt</span>
+          <span id="clock" class="clock"></span>
+          <span id="origin" class="origin-badge" hidden></span>
+        </div>
+        <div id="loading" class="loading" hidden><i></i></div>
+      </div>
+
+      <div class="slider-wrap">
+        <input
+          id="slider"
+          class="slider"
+          type="range"
+          min="0"
+          max="1000"
+          value="0"
+          step="1"
+          aria-label="Vorhersagezeit"
+        />
+        <div id="ticks" class="ticks" aria-hidden="true"></div>
+      </div>
+
+      <div id="sources" class="sources"></div>
+
+      <div id="attribution" class="attribution"></div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

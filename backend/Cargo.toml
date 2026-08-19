@@ -1,0 +1,46 @@
+[package]
+name = "regenradar-backend"
+version = "0.1.0"
+edition = "2021"
+description = "Ad-free rain radar backend: DWD RV nowcast + Open-Meteo Europe, served as GraphQL metadata + PNG frame stacks"
+
+[dependencies]
+anyhow = "1"
+bytes = "1"
+async-graphql = { version = "7", features = ["chrono"] }
+async-graphql-axum = "7"
+axum = "0.8"
+bzip2 = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
+mimalloc = { version = "0.1", default-features = false }
+
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls",
+    "gzip",
+    "json",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tar = "0.4"
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "time",
+    "sync",
+    "signal",
+] }
+tower-http = { version = "0.6", features = [
+    "compression-br",
+    "compression-gzip",
+    "cors",
+    "fs",
+    "trace",
+] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+image-webp = "0.2.4"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1

@@ -1,0 +1,13 @@
+**/target
+**/node_modules
+**/dist
+**/dev-dist
+web/e2e/.artifacts
+web/playwright-report
+web/test-results
+shots
+.git
+.github
+deploy
+*.md
+.DS_Store

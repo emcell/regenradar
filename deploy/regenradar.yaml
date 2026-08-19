@@ -1,0 +1,98 @@
+# Minimal deployment for a single-node or small cluster.
+#
+#   kubectl apply -f deploy/regenradar.yaml
+#
+# Adjust the image reference and the Ingress host, then it is self-contained: no
+# database, no volumes, no secrets. Every forecast lives in memory and is rebuilt
+# from the DWD within seconds of a restart.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: regenradar
+  labels: { app: regenradar }
+spec:
+  # Deliberately one. Each replica independently downloads and reprojects every DWD
+  # run, so a second one doubles the upstream traffic and the CPU without adding
+  # anything a cache in front would not do better.
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: regenradar }
+  template:
+    metadata:
+      labels: { app: regenradar }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: regenradar
+          image: ghcr.io/OWNER/REPO:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8787 }
+          env:
+            - { name: RUST_LOG, value: "info,tower_http=warn" }
+          # Liveness asks only whether the process answers, so a bad minute at the
+          # DWD never triggers a restart — restarting would not help anyway.
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 30
+            failureThreshold: 4
+          # Readiness asks whether there is a forecast to serve, which is what
+          # traffic should actually be routed on.
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          # The first run has to be fetched, decoded and reprojected before the pod
+          # is useful; this is what keeps a slow start from looking like a crash.
+          startupProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+            failureThreshold: 36
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            # Peaks during ingest are well above the idle footprint: a run decodes
+            # 25 radar frames and up to 40 model steps in one pass.
+            limits: { memory: 768Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: regenradar
+  labels: { app: regenradar }
+spec:
+  selector: { app: regenradar }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+# Installing as a PWA needs HTTPS, so this is not optional decoration — without a
+# certificate the service worker never registers and "add to home screen" stays away.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: regenradar
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts: [regenradar.example.com]
+      secretName: regenradar-tls
+  rules:
+    - host: regenradar.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: regenradar
+                port: { name: http }
