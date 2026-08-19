@@ -266,7 +266,7 @@ pub fn downscale(data: &[u8], width: u32, height: u32, dst_w: u32, dst_h: u32) -
                     n += 1;
                 }
             }
-            out[(dy * dst_w + dx) as usize] = if n > 0 { (sum / n) as u8 } else { 0 };
+            out[(dy * dst_w + dx) as usize] = sum.checked_div(n).unwrap_or(0) as u8;
         }
     }
     out
