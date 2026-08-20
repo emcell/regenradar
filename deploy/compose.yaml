@@ -1,11 +1,51 @@
-# For a plain Docker host:  docker compose -f deploy/compose.yaml up -d
+# Ein einzelner Docker-Host:
+#
+#   docker compose -f deploy/compose.yaml up -d
+#
+# Keine Datenbank, kein Volume, kein Secret. Nötig ist genau zweierlei: ein
+# freigegebener Port und ausgehendes HTTPS zu opendata.dwd.de. Jede Vorhersage liegt
+# im Speicher und ist nach einem Neustart in Sekunden wieder da.
 services:
   regenradar:
-    image: ghcr.io/OWNER/REPO:latest
+    image: ghcr.io/emcell/regenradar:latest
     restart: unless-stopped
+
     ports:
+      # Steht ein Reverse Proxy davor, gehört hier `127.0.0.1:8787:8787` hin, damit
+      # der Container nicht selbst am öffentlichen Interface hängt.
       - "8787:8787"
+
     environment:
       RUST_LOG: "info,tower_http=warn"
+      # Alles Weitere ist optional; die Voreinstellungen sind die des Betriebs.
+      #
+      # REGENRADAR_MODEL_ENABLED: "0"      # nur Radar, ohne ICON-D2-Verlängerung
+      # REGENRADAR_MODEL_HORIZON_HOURS: "6" # wie weit das Modell nach vorn reicht (0–48)
+      # REGENRADAR_MODEL_POLL_SECS: "600"
+      # REGENRADAR_DWD_POLL_SECS: "60"      # der RV-Lauf erscheint alle 5 Minuten
+      # REGENRADAR_DWD_RESOLUTION_M: "1430" # feiner interpoliert nur, siehe config.rs
+      # REGENRADAR_BIND und REGENRADAR_WEB_DIR setzt das Image bereits richtig.
+
+    # Der Prozess schreibt nichts auf Platte — kein tmpfs, kein Volume nötig.
     read_only: true
     security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+
+    # Das Image bringt seinen HEALTHCHECK mit (`regenradar --healthcheck` gegen
+    # /readyz, also „es gibt eine Vorhersage", nicht „der Prozess lebt"). Hier steht
+    # er nur, damit die großzügige Startphase sichtbar ist: der erste DWD-Lauf muss
+    # geladen und reprojiziert sein, bevor es etwas auszuliefern gibt.
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/regenradar", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+
+    # Im Leerlauf ~210 MB; die Spitzen liegen beim Ingest, wenn 25 Radarbilder und
+    # bis zu 40 Modellschritte in einem Durchgang dekodiert werden.
+    mem_limit: 768m
+
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

@@ -278,7 +278,7 @@ jede Vorhersage liegt im Speicher und ist nach einem Neustart innerhalb weniger
 Sekunden wieder da.
 
 ```bash
-docker run -d -p 8787:8787 --read-only ghcr.io/OWNER/REPO:latest
+docker run -d -p 8787:8787 --read-only ghcr.io/emcell/regenradar:latest
 ```
 
 `deploy/regenradar.yaml` enthält Deployment, Service und Ingress; `deploy/compose.yaml`
