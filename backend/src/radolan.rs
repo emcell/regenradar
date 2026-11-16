@@ -81,9 +81,9 @@ pub fn parse(bytes: &[u8], assumed_now: DateTime<Utc>) -> Result<RadolanFrame> {
     let mut mm_per_hour = vec![0.0f32; nx * ny];
     for (out, chunk) in mm_per_hour
         .iter_mut()
-        .zip(payload[..expected].chunks_exact(2))
+        .zip(payload[..expected].as_chunks::<2>().0)
     {
-        let raw = u16::from_le_bytes([chunk[0], chunk[1]]);
+        let raw = u16::from_le_bytes(*chunk);
         *out = if raw & FLAG_NODATA != 0 {
             f32::NAN
         } else {
