@@ -104,8 +104,11 @@ aufsummieren.
 ### C) Rohdaten vom DWD
 
 ```
-https://opendata.dwd.de/weather/radar/composite/rv/DE1200_RV_LATEST.tar.bz2
+https://opendata.dwd.de/weather/radar/composite/rv/composite_rv_LATEST.tar
 ```
+
+(Bis Herbst 2026: `DE1200_RV_LATEST.tar.bz2` im RADOLAN-Binärformat; seitdem ODIM_H5,
+gleiches Gitter. Der alte Name liefert 404.)
 
 Verzeichnis `https://opendata.dwd.de/weather/radar/composite/` enthält u. a.:
 `dmax/ hg/ hx/ hymecng/ pg/ rs/ rv/ vii/ wn/`

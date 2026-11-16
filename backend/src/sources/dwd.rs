@@ -1,7 +1,8 @@
 //! DWD RV nowcast ingest — the app's only data source.
 //!
-//! `DE1200_RV_LATEST.tar.bz2` is republished every five minutes and contains 25
-//! frames: the current radar analysis plus 24 nowcast steps reaching two hours
+//! `composite_rv_LATEST.tar` is republished every five minutes and contains 25
+//! frames (ODIM_H5; until autumn 2026 the same product came as RADOLAN binary in
+//! `DE1200_RV_LATEST.tar.bz2` — both are still understood, see [`for_each_frame`]): the current radar analysis plus 24 nowcast steps reaching two hours
 //! ahead, on a 1 km grid. That is the same product the commercial rain-radar apps
 //! render, and it is open data under GeoNutzV.
 //!
@@ -19,7 +20,7 @@ use chrono::Utc;
 use tracing::{debug, info, warn};
 
 use crate::{
-    motion,
+    motion, odim,
     proj::{self, MercBox, RAD_NX, RAD_NY},
     radolan::{self, RadolanFrame},
     raster::{self, ResampleMap},
@@ -206,7 +207,7 @@ pub async fn run(state: Arc<AppState>) {
 async fn poll_once(state: &AppState, last_modified: &mut Option<String>) -> Result<bool> {
     let url = &state.cfg.dwd_url;
 
-    // Cheap change check first — the archive is ~2 MB and only turns over every
+    // Cheap change check first — the archive is ~7 MB and only turns over every
     // five minutes, so most polls should cost nothing but a HEAD.
     if last_modified.is_some() {
         if let Ok(head) = state.http.head(url).send().await {
@@ -255,13 +256,20 @@ async fn poll_once(state: &AppState, last_modified: &mut Option<String>) -> Resu
 
 /// Walk the archive, handing each decoded frame to `sink`.
 ///
+/// The archive may be plain or bzip2-compressed, and each member ODIM_H5 or RADOLAN
+/// binary — told apart by their magic bytes, so an old-format URL keeps working.
+///
 /// One frame is alive at a time. The alternative — collecting all 25 up front — costs
 /// 125 MB of `f32` for a product whose rendered output is three megabytes, and the
 /// crop has to be known before any frame can be resampled anyway.
 fn for_each_frame(archive: &[u8], mut sink: impl FnMut(RadolanFrame) -> Result<()>) -> Result<()> {
     let now = Utc::now();
-    let decoder = bzip2::read::BzDecoder::new(std::io::Cursor::new(archive));
-    let mut tar = tar::Archive::new(decoder);
+    let reader: Box<dyn Read + '_> = if archive.starts_with(b"BZh") {
+        Box::new(bzip2::read::BzDecoder::new(std::io::Cursor::new(archive)))
+    } else {
+        Box::new(std::io::Cursor::new(archive))
+    };
+    let mut tar = tar::Archive::new(reader);
     for entry in tar.entries().context("reading tar entries")? {
         let mut entry = entry?;
         let mut buf = Vec::with_capacity(entry.size() as usize);
@@ -269,10 +277,19 @@ fn for_each_frame(archive: &[u8], mut sink: impl FnMut(RadolanFrame) -> Result<(
         if buf.is_empty() {
             continue;
         }
-        match radolan::parse(&buf, now) {
+        let path = entry
+            .path()
+            .map(|p| p.display().to_string())
+            .unwrap_or_default();
+        let parsed = if odim::is_hdf5(&buf) {
+            odim::parse(buf)
+        } else {
+            radolan::parse(&buf, now)
+        };
+        match parsed {
             Ok(f) => sink(f)?,
             // One malformed member should not throw away a whole run.
-            Err(e) => warn!("skipping RADOLAN member: {e:#}"),
+            Err(e) => warn!("skipping RV member {path}: {e:#}"),
         }
     }
     Ok(())
@@ -313,7 +330,7 @@ fn build_part(archive: &[u8], resolution_m: f64, snap: usize) -> Result<SourcePa
     })?;
 
     if order.is_empty() {
-        bail!("archive contained no readable RADOLAN frames");
+        bail!("archive contained no readable RV frames");
     }
     let crop = bounds.unwrap_or_else(Crop::full).snapped(snap);
     let map = resample_map(crop, resolution_m);
@@ -437,7 +454,7 @@ mod tests {
     /// Build the same run repeatedly and watch resident memory.
     ///
     /// Opt-in because it needs a real archive:
-    /// `REGENRADAR_TEST_RV=/path/to/DE1200_RV_LATEST.tar.bz2 cargo test -- --ignored --nocapture`
+    /// `REGENRADAR_TEST_RV=/path/to/composite_rv_LATEST.tar cargo test -- --ignored --nocapture`
     #[test]
     #[ignore]
     fn repeated_builds_do_not_grow() {

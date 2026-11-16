@@ -41,7 +41,7 @@ impl Default for Config {
             bind: "0.0.0.0:8787".parse().unwrap(),
             web_dir: PathBuf::from("../web/dist"),
 
-            dwd_url: "https://opendata.dwd.de/weather/radar/composite/rv/DE1200_RV_LATEST.tar.bz2"
+            dwd_url: "https://opendata.dwd.de/weather/radar/composite/rv/composite_rv_LATEST.tar"
                 .into(),
             dwd_poll: Duration::from_secs(60),
             dwd_resolution_m: 1430.0,

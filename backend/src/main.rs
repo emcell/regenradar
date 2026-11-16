@@ -8,6 +8,7 @@ mod config;
 mod gql;
 mod grib2;
 mod motion;
+mod odim;
 mod proj;
 mod radolan;
 mod raster;
@@ -97,6 +98,7 @@ async fn main() -> anyhow::Result<()> {
     let probes = Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
+        .route("/metrics", get(metrics))
         .with_state(state.clone());
 
     let mut app = api.merge(probes);
@@ -262,6 +264,55 @@ async fn readyz(State(state): State<Arc<AppState>>) -> impl IntoResponse {
             "no data yet\n".to_string(),
         ),
     }
+}
+
+/// Prometheus text exposition, for alerting on stale data.
+///
+/// The process stays healthy when the DWD changes a URL or a format — it just keeps
+/// serving the last forecast — so liveness probes never notice. What does notice is
+/// the age of the newest data: alert on `time() - regenradar_data_timestamp_seconds`.
+async fn metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    use std::fmt::Write;
+    let mut out = String::new();
+    let _ = writeln!(out, "# HELP regenradar_data_timestamp_seconds Valid time of the first (analysis) frame of the current run, per source.");
+    let _ = writeln!(out, "# TYPE regenradar_data_timestamp_seconds gauge");
+    let sources = [("radar", state.radar()), ("model", state.model())];
+    for (name, part) in &sources {
+        if let Some(t) = part.as_ref().and_then(|p| p.times.first()) {
+            let _ = writeln!(
+                out,
+                "regenradar_data_timestamp_seconds{{source=\"{name}\"}} {}",
+                t.timestamp()
+            );
+        }
+    }
+    let _ = writeln!(out, "# HELP regenradar_ingest_timestamp_seconds When the current run of each source was ingested.");
+    let _ = writeln!(out, "# TYPE regenradar_ingest_timestamp_seconds gauge");
+    for (name, part) in &sources {
+        if let Some(p) = part {
+            let _ = writeln!(
+                out,
+                "regenradar_ingest_timestamp_seconds{{source=\"{name}\"}} {}",
+                p.updated_at.timestamp()
+            );
+        }
+    }
+    let _ = writeln!(
+        out,
+        "# HELP regenradar_started_timestamp_seconds Process start time."
+    );
+    let _ = writeln!(out, "# TYPE regenradar_started_timestamp_seconds gauge");
+    let _ = writeln!(
+        out,
+        "regenradar_started_timestamp_seconds {}",
+        state.started_at.timestamp()
+    );
+    let mut headers = no_store();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/plain; version=0.0.4"),
+    );
+    (StatusCode::OK, headers, out)
 }
 
 async fn graphiql() -> impl IntoResponse {

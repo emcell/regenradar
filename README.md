@@ -130,8 +130,9 @@ was `texImage2D` haben will.
 
 ### Verarbeitungskette
 
-1. **Ingest** (alle 5 min): `DE1200_RV_LATEST.tar.bz2` laden, 25 RADOLAN-Frames
-   dekodieren.
+1. **Ingest** (alle 5 min): `composite_rv_LATEST.tar` laden, 25 Frames (ODIM_H5)
+   dekodieren. Bis Herbst 2026 kam dasselbe Produkt als RADOLAN-Binär in
+   `DE1200_RV_LATEST.tar.bz2`; beide Formate werden erkannt (`REGENRADAR_DWD_URL`).
 2. **Zuschnitt:** Das DE1200-Gitter ist deutlich größer als die Radarreichweite. Jeder
    Lauf wird auf den Bereich beschnitten, in dem er tatsächlich Daten hat — über
    *alle* Frames hinweg, denn der Nowcast advehiert das Feld samt Datenrand, sodass
@@ -302,6 +303,12 @@ reparieren würde. `/readyz` sagt, ob es tatsächlich eine Vorhersage auszuliefe
 gibt, und darauf sollte der Load Balancer routen. Das Image prüft sich per
 `regenradar --healthcheck` selbst, weshalb kein `curl` darin liegen muss.
 
+**Veraltete Daten fallen keiner Probe auf.** Ändert der DWD Pfad oder Format, läuft
+der Prozess gesund weiter und zeigt die letzte Vorhersage. Dafür gibt es `/metrics`
+(Prometheus): `regenradar_data_timestamp_seconds{source="radar"|"model"}` ist die
+Zeit des ersten Frames des aktuellen Laufs; Alarm auf
+`time() - regenradar_data_timestamp_seconds{source="radar"} > 1800`.
+
 Gemessen an einem laufenden Container: **123 MB Image**, nach 6 s bereit, ~210 MB
 Speicher im Betrieb, läuft als uid 10001 mit schreibgeschütztem Dateisystem.
 
@@ -417,7 +424,8 @@ nicht automatisch läuft:
 
 ```bash
 REGENRADAR_TEST_GRIB=/pfad/zu/datei.grib2 cargo test -- --ignored --nocapture
-REGENRADAR_TEST_RV=/pfad/zu/DE1200_RV_LATEST.tar.bz2 cargo test -- --ignored --nocapture
+REGENRADAR_TEST_RV=/pfad/zu/composite_rv_LATEST.tar cargo test -- --ignored --nocapture
+REGENRADAR_TEST_ODIM=/pfad/zu/composite_rv_..._000-hd5 cargo test -- --ignored --nocapture
 ```
 
 Der zweite baut denselben Lauf sechsmal und prüft, dass die Resident-Größe sich
