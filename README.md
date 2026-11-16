@@ -285,6 +285,9 @@ docker run -d -p 8787:8787 --read-only ghcr.io/emcell/regenradar:latest
 das Äquivalent für einen einzelnen Docker-Host. In beiden nur Image-Referenz und
 Hostname anpassen.
 
+`deploy/helm/regenradar` ist dasselbe als Helm-Chart (Ingress und/oder Gateway-API-
+HTTPRoute); so läuft regen.emcellsoft.de, ausgerollt per Flux aus dem Infra-Repo.
+
 **Für die PWA braucht es HTTPS.** Service Worker und „Zum Home-Bildschirm" verlangen
 einen sicheren Kontext, Ausnahme ist nur `localhost`. Ohne Zertifikat bleibt es eine
 normale Website — deshalb steht im Manifest ein Ingress mit TLS.

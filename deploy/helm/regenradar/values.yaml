@@ -1,0 +1,88 @@
+# Regenradar: zustandslos, kein Volume, kein Secret. Nötig ist nur ein Port und
+# ausgehendes HTTPS zu opendata.dwd.de.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/emcell/regenradar
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+
+# Der Container lauscht auf 8787 (REGENRADAR_BIND setzt das Image selbst).
+containerPort: 8787
+
+env:
+  RUST_LOG: "info,tower_http=warn"
+  # Alles Weitere ist optional; die Voreinstellungen sind die des Betriebs.
+  #
+  # REGENRADAR_MODEL_ENABLED: "0"        # nur Radar, ohne ICON-D2-Verlängerung
+  # REGENRADAR_MODEL_HORIZON_HOURS: "6"  # wie weit das Modell nach vorn reicht (0-48)
+  # REGENRADAR_MODEL_POLL_SECS: "600"
+  # REGENRADAR_DWD_POLL_SECS: "60"       # der RV-Lauf erscheint alle 5 Minuten
+  # REGENRADAR_DWD_RESOLUTION_M: "1430"  # feiner interpoliert nur, siehe config.rs
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: regen.emcellsoft.de
+  clusterIssuer: letsencrypt
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+# Gateway API: HTTPRoute für ingress.host an diesem Gateway (zusätzlich zum Ingress,
+# solange ingress.enabled). Das TLS-Zertifikat hält das Gateway.
+gateway:
+  enabled: false
+  parentRef:
+    name: public
+    namespace: envoy-gateway-system
+
+# Im Leerlauf ~210 MB; die Spitzen liegen beim Ingest, wenn 25 Radarbilder und
+# bis zu 40 Modellschritte in einem Durchgang dekodiert werden.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 768Mi
+
+# Entspricht read_only / no-new-privileges / cap_drop ALL aus dem compose.
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+podSecurityContext: {}
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# Der HEALTHCHECK des Images prüft /readyz, also "es gibt eine Vorhersage" --
+# nicht "der Prozess lebt". Deshalb hängen Startup und Readiness daran, die
+# Liveness dagegen nur am offenen Port: ein DWD-Ausfall soll den Pod nicht
+# in eine Restart-Schleife schicken.
+probes:
+  # bis zu 30 * 10s = 300s für den ersten DWD-Lauf
+  startup:
+    periodSeconds: 10
+    failureThreshold: 30
+    timeoutSeconds: 5
+  readiness:
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  liveness:
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}

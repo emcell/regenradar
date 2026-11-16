@@ -1,0 +1,7 @@
+apiVersion: v2
+name: regenradar
+description: Regenradar (DWD RV + ICON-D2) hinter nginx-ingress mit Let's-Encrypt-TLS
+type: application
+
+version: 0.1.0
+appVersion: "latest"
