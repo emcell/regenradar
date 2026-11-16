@@ -43,6 +43,12 @@ gateway:
     name: public
     namespace: envoy-gateway-system
 
+# Prometheus-Operator: ServiceMonitor für /metrics und Alarme auf veraltete Daten.
+monitoring:
+  enabled: false
+  radarMaxAgeMinutes: 30   # neuer Lauf alle 5 min
+  modelMaxAgeHours: 6      # ICON-D2 alle 3 h
+
 # Im Leerlauf ~210 MB; die Spitzen liegen beim Ingest, wenn 25 Radarbilder und
 # bis zu 40 Modellschritte in einem Durchgang dekodiert werden.
 resources:

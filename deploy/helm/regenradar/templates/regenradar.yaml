@@ -131,3 +131,55 @@ spec:
         - name: {{ $fullname }}
           port: {{ .Values.service.port }}
 {{- end }}
+{{- if .Values.monitoring.enabled }}
+---
+# Prometheus (Operator-CRDs, z. B. kube-prometheus-stack) liest /metrics.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $fullname }}
+  labels:
+    app: {{ $fullname }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ $fullname }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 60s
+---
+# Der Prozess bleibt gesund, wenn der DWD Pfad oder Format ändert – er zeigt dann nur
+# die letzte Vorhersage weiter. Darum der Alarm auf das Alter der Daten.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $fullname }}
+  labels:
+    app: {{ $fullname }}
+spec:
+  groups:
+    - name: regenradar
+      rules:
+        - alert: RegenradarRadarStale
+          expr: time() - max(regenradar_data_timestamp_seconds{source="radar", namespace="{{ .Release.Namespace }}"}) > {{ .Values.monitoring.radarMaxAgeMinutes }} * 60
+          for: 10m
+          labels: {severity: critical}
+          annotations:
+            summary: {{ printf "Regenradar: Radardaten sind {{ $value | humanizeDuration }} alt" | quote }}
+            description: "Der DWD-RV-Ingest kommt nicht mehr durch (Pfad oder Format geändert?). kubectl logs -n {{ .Release.Namespace }} deploy/{{ $fullname }}"
+        - alert: RegenradarModelStale
+          expr: time() - max(regenradar_data_timestamp_seconds{source="model", namespace="{{ .Release.Namespace }}"}) > {{ .Values.monitoring.modelMaxAgeHours }} * 3600
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: {{ printf "Regenradar: ICON-D2-Modell ist {{ $value | humanizeDuration }} alt" | quote }}
+            description: "Der ICON-D2-Ingest kommt nicht mehr durch. kubectl logs -n {{ .Release.Namespace }} deploy/{{ $fullname }}"
+        - alert: RegenradarNoData
+          expr: absent(regenradar_data_timestamp_seconds{source="radar", namespace="{{ .Release.Namespace }}"})
+          for: 30m
+          labels: {severity: critical}
+          annotations:
+            summary: "Regenradar liefert keine Radardaten (oder wird nicht abgefragt)"
+            description: "Seit 30 min keine Metrik regenradar_data_timestamp_seconds{source=radar}: Pod down, Ingest nie geglückt oder /metrics nicht erreichbar."
+{{- end }}
